@@ -1,0 +1,167 @@
+--- lora_pkt_fwd.c	2020-09-01 07:04:31.603000000 +0300
++++ src/lora_pkt_fwd.c	2020-02-21 11:33:23.000000000 +0200
+@@ -70,7 +70,6 @@
+ #endif
+ 
+ #define JSON_CONF_DEFAULT   "global_conf.json"
+-#define JSON_CONF_LOCAL		"local_conf.json"
+ 
+ #define DEFAULT_SERVER      127.0.0.1   /* hostname also supported */
+ #define DEFAULT_PORT_UP     1780
+@@ -334,7 +333,7 @@
+     memset(&boardconf, 0, sizeof boardconf); /* initialize configuration structure */
+     str = json_object_get_string(conf_obj, "spidev_path");
+     if (str != NULL) {
+-        strncpy(boardconf.spidev_path, str, sizeof(boardconf.spidev_path) - 1);
++        strncpy(boardconf.spidev_path, str, sizeof boardconf.spidev_path);
+         boardconf.spidev_path[sizeof boardconf.spidev_path - 1] = '\0'; /* ensure string termination */
+     } else {
+         MSG("ERROR: spidev path must be configured in %s\n", conf_file);
+@@ -784,7 +783,7 @@
+     /* server hostname or IP address (optional) */
+     str = json_object_get_string(conf_obj, "server_address");
+     if (str != NULL) {
+-        strncpy(serv_addr, str, sizeof(serv_addr) - 1);
++        strncpy(serv_addr, str, sizeof serv_addr);
+         serv_addr[sizeof serv_addr - 1] = '\0'; /* ensure string termination */
+         MSG("INFO: server hostname or IP address is configured to \"%s\"\n", serv_addr);
+     }
+@@ -842,7 +841,7 @@
+     /* GPS module TTY path (optional) */
+     str = json_object_get_string(conf_obj, "gps_tty_path");
+     if (str != NULL) {
+-        strncpy(gps_tty_path, str, sizeof(gps_tty_path) - 1);
++        strncpy(gps_tty_path, str, sizeof gps_tty_path);
+         gps_tty_path[sizeof gps_tty_path - 1] = '\0'; /* ensure string termination */
+         MSG("INFO: GPS serial port path is configured to \"%s\"\n", gps_tty_path);
+     }
+@@ -1000,7 +999,7 @@
+     /* Get log file configuration */
+     str = json_object_get_string(conf_obj, "log_file");
+     if (str != NULL) {
+-        strncpy(debugconf.log_file_name, str, sizeof(debugconf.log_file_name) - 1);
++        strncpy(debugconf.log_file_name, str, sizeof debugconf.log_file_name);
+         debugconf.log_file_name[sizeof debugconf.log_file_name - 1] = '\0'; /* ensure string termination */
+         MSG("INFO: setting debug log file name to %s\n", debugconf.log_file_name);
+     }
+@@ -1170,8 +1169,6 @@
+     /* configuration file related */
+     const char defaut_conf_fname[] = JSON_CONF_DEFAULT;
+     const char * conf_fname = defaut_conf_fname; /* pointer to a string we won't touch */
+-    const char default_local_conf_fname[] = JSON_CONF_LOCAL;
+-    const char * local_conf_fname = default_local_conf_fname;
+ 
+     /* threads */
+     pthread_t thrid_up;
+@@ -1221,7 +1218,7 @@
+     uint32_t trig_tstamp;
+     uint32_t inst_tstamp;
+     uint64_t eui;
+-//    float temperature;
++    float temperature;
+ 
+     /* statistics variable */
+     time_t t;
+@@ -1285,17 +1282,6 @@
+         MSG("ERROR: [main] failed to find any configuration file named %s\n", conf_fname);
+         exit(EXIT_FAILURE);
+     }
+-    /* load local configuration files */
+-    if (access(local_conf_fname, R_OK) == 0) { /* if there is a local conf, parse it  */
+-        MSG("INFO: found configuration file %s, parsing it\n", local_conf_fname);
+-        x = parse_gateway_configuration(local_conf_fname);
+-        if (x != 0) {
+-            exit(EXIT_FAILURE);
+-        }
+-    } else {
+-        MSG("ERROR: [main] failed to find any configuration file named %s\n", local_conf_fname);
+-        exit(EXIT_FAILURE);
+-    }
+ 
+     /* Start GPS a.s.a.p., to allow it to lock */
+     if (gps_tty_path[0] != '\0') { /* do not try to open GPS device if no path set */
+@@ -1611,22 +1597,20 @@
+         } else {
+             printf("# GPS sync is disabled\n");
+         }
+-        /*
+         i = lgw_get_temperature(&temperature);
+         if (i != LGW_HAL_SUCCESS) {
+             printf("### Concentrator temperature unknown ###\n");
+         } else {
+             printf("### Concentrator temperature: %.0f C ###\n", temperature);
+         }
+-        */
+         printf("##### END #####\n");
+ 
+         /* generate a JSON report (will be sent to server by upstream thread) */
+         pthread_mutex_lock(&mx_stat_rep);
+         if (((gps_enabled == true) && (coord_ok == true)) || (gps_fake_enable == true)) {
+-            snprintf(status_report, STATUS_SIZE, "\"stat\":{\"time\":\"%s\",\"lati\":%.5f,\"long\":%.5f,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%.1f,\"dwnb\":%u,\"txnb\":%u}", stat_timestamp, cp_gps_coord.lat, cp_gps_coord.lon, cp_gps_coord.alt, cp_nb_rx_rcv, cp_nb_rx_ok, cp_up_pkt_fwd, 100.0 * up_ack_ratio, cp_dw_dgram_rcv, cp_nb_tx_ok);
++            snprintf(status_report, STATUS_SIZE, "\"stat\":{\"time\":\"%s\",\"lati\":%.5f,\"long\":%.5f,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%.1f,\"dwnb\":%u,\"txnb\":%u,\"temp\":%.1f}", stat_timestamp, cp_gps_coord.lat, cp_gps_coord.lon, cp_gps_coord.alt, cp_nb_rx_rcv, cp_nb_rx_ok, cp_up_pkt_fwd, 100.0 * up_ack_ratio, cp_dw_dgram_rcv, cp_nb_tx_ok, temperature);
+         } else {
+-            snprintf(status_report, STATUS_SIZE, "\"stat\":{\"time\":\"%s\",\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%.1f,\"dwnb\":%u,\"txnb\":%u}", stat_timestamp, cp_nb_rx_rcv, cp_nb_rx_ok, cp_up_pkt_fwd, 100.0 * up_ack_ratio, cp_dw_dgram_rcv, cp_nb_tx_ok);
++            snprintf(status_report, STATUS_SIZE, "\"stat\":{\"time\":\"%s\",\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%.1f,\"dwnb\":%u,\"txnb\":%u,\"temp\":%.1f}", stat_timestamp, cp_nb_rx_rcv, cp_nb_rx_ok, cp_up_pkt_fwd, 100.0 * up_ack_ratio, cp_dw_dgram_rcv, cp_nb_tx_ok, temperature);
+         }
+         report_ready = true;
+         pthread_mutex_unlock(&mx_stat_rep);
+@@ -3027,51 +3011,6 @@
+     }
+ }
+ 
+-static void modify_os_time(const uint32_t ppm_tstamp)
+-{
+-    struct timespec y;
+-    struct timespec tv;
+-    static bool time_already_set = false;
+-    struct timeval stamp;
+-    gettimeofday(&stamp, NULL);
+-    int time_diff = 0;
+-    lgw_cnt2utc(time_reference_gps, ppm_tstamp, &y);
+-    if ((!gps_enabled) || time_already_set)
+-    {
+-        return;
+-    }
+-    if (y.tv_sec < 1583402711) // time less than '2020-03-05 18:00:00'
+-    {
+-        return;
+-    }
+-
+-    MSG("INFO: [modify_os_time] local_time=%ld, gps_time=%ld\n", stamp.tv_sec, y.tv_sec);
+-    time_diff = abs(y.tv_sec - stamp.tv_sec);
+-
+-    if (time_diff < 10)
+-    {
+-        time_already_set = true;
+-        MSG("INFO: [modify_os_time] The difference between the system time(%ld) and the GPS time(%ld) is less than 10 seconds. Use the system time.\n", stamp.tv_sec, y.tv_sec);
+-        return;
+-    }
+-
+-    tv.tv_sec = y.tv_sec;
+-    tv.tv_nsec = 0;
+-
+-    int ret = clock_settime(CLOCK_REALTIME, &tv);
+-    if (0 == ret)
+-    {
+-        time_already_set = true;
+-        time_t t;
+-        struct tm* local;
+-        char buf[128] = {0};
+-        t = time(NULL);
+-        local = localtime(&t);
+-        strftime(buf, 64, "%Y-%m-%d %H:%M:%S", local);  
+-        MSG("INFO: [modify_os_time] System time has been synchronized via GPS, %s\n", buf);
+-    }
+-}
+-
+ /* -------------------------------------------------------------------------- */
+ /* --- THREAD 4: PARSE GPS MESSAGE AND KEEP GATEWAY IN SYNC ----------------- */
+ 
+@@ -3099,7 +3038,6 @@
+     /* try to update time reference with the new GPS time & timestamp */
+     pthread_mutex_lock(&mx_timeref);
+     i = lgw_gps_sync(&time_reference_gps, trig_tstamp, utc, gps_time);
+-    modify_os_time(trig_tstamp);
+     pthread_mutex_unlock(&mx_timeref);
+     if (i != LGW_GPS_SUCCESS) {
+         MSG("WARNING: [gps] GPS out of sync, keeping previous time reference\n");
